@@ -41,3 +41,30 @@ export interface EngineerInsight {
   risks: string[];
   recommendations: string[];
 }
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  sources?: { title: string; uri: string }[];
+  isThinking?: boolean;
+}
+
+// Defining as const objects to ensure the bindings exist at runtime in ESM
+export const ImageSize = {
+  '1K': '1K',
+  '2K': '2K',
+  '4K': '4K',
+} as const;
+export type ImageSize = keyof typeof ImageSize;
+
+export const AspectRatio = {
+  '1:1': '1:1',
+  '2:3': '2:3',
+  '3:2': '3:2',
+  '3:4': '3:4',
+  '4:3': '4:3',
+  '9:16': '9:16',
+  '16:9': '16:9',
+  '21:9': '21:9',
+} as const;
+export type AspectRatio = keyof typeof AspectRatio;
