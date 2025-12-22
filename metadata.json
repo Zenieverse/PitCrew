@@ -1,0 +1,5 @@
+{
+  "name": "PitCrew AI - Sprint Race Control",
+  "description": "An Atlassian Forge-inspired dashboard that transforms Jira sprint execution into a Formula 1-style race control system using Gemini AI for predictive analytics and sprint guidance.",
+  "requestFramePermissions": []
+}
