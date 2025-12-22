@@ -12,7 +12,7 @@ Or https://pit-crew-ai--zenieverse.replit.app/sprint/1
 
 Video Demo https://youtu.be/-ahdMsBRG2U?si=D2i8nj6wrs2xhVKs 
 
-And
+And https://poe.com/PitCrewAI.01
 
 
 
