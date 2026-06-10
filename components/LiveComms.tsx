@@ -1,174 +1,210 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Video, VideoOff, Radio, Loader2, Activity, Info, MessageSquare } from 'lucide-react';
+import { Mic, MicOff, Radio, Loader2, Activity, Info, Volume2 } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
+
+// Decoding raw PCM data as required by the native audio stream rules
+function decode(base64: string) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
+function encode(bytes: Uint8Array) {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 const LiveComms: React.FC = () => {
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [transcript, setTranscript] = useState<{ role: 'user' | 'model', text: string }[]>([]);
+  
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const sessionRef = useRef<any>(null);
-  const nextStartTimeRef = useRef(0);
+  const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  const nextStartTimeRef = useRef<number>(0);
+  const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const startSession = async () => {
     setLoading(true);
+    setTranscript([]);
     try {
+      if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      // Fixed: Strictly use process.env.API_KEY as per initialization rules.
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      sessionRef.current = await ai.live.connect({
+      sessionPromiseRef.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
           onopen: () => {
-            console.log('Live connected');
             setIsActive(true);
             setLoading(false);
-            const source = audioCtxRef.current!.createMediaStreamSource(streamRef.current!);
+            const source = audioCtxRef.current!.createMediaStreamSource(stream);
             const scriptNode = audioCtxRef.current!.createScriptProcessor(4096, 1, 1);
+            
             scriptNode.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const int16 = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
-              sessionRef.current?.sendRealtimeInput({ 
-                media: { data: encode(new Uint8Array(int16.buffer)), mimeType: 'audio/pcm;rate=16000' }
+              const input = e.inputBuffer.getChannelData(0);
+              const int16 = new Int16Array(input.length);
+              for (let i=0; i<input.length; i++) int16[i] = input[i] * 32768;
+              const pcm = encode(new Uint8Array(int16.buffer));
+              
+              sessionPromiseRef.current?.then(s => {
+                s.sendRealtimeInput({ media: { data: pcm, mimeType: 'audio/pcm;rate=16000' } });
               });
             };
+            
             source.connect(scriptNode);
             scriptNode.connect(audioCtxRef.current!.destination);
           },
           onmessage: async (msg) => {
             if (msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
-              const base64 = msg.serverContent.modelTurn.parts[0].inlineData.data;
-              playAudio(base64);
+              playAudio(msg.serverContent.modelTurn.parts[0].inlineData.data);
             }
             if (msg.serverContent?.outputTranscription) {
-              setTranscript(prev => [...prev.slice(-15), { role: 'model', text: msg.serverContent!.outputTranscription!.text }]);
+              setTranscript(p => [...p.slice(-20), { role: 'model', text: msg.serverContent!.outputTranscription!.text }]);
             }
             if (msg.serverContent?.inputTranscription) {
-              setTranscript(prev => [...prev.slice(-15), { role: 'user', text: msg.serverContent!.inputTranscription!.text }]);
+              setTranscript(p => [...p.slice(-20), { role: 'user', text: msg.serverContent!.inputTranscription!.text }]);
+            }
+            if (msg.serverContent?.interrupted) {
+              activeSourcesRef.current.forEach(src => { try { src.stop(); } catch(e){} });
+              activeSourcesRef.current.clear();
+              nextStartTimeRef.current = 0;
             }
           },
-          onerror: (e) => console.error(e),
-          onclose: () => setIsActive(false),
+          onerror: () => stopSession(),
+          onclose: () => {
+            setIsActive(false);
+            setLoading(false);
+          },
         },
         config: {
           responseModalities: [Modality.AUDIO],
           outputAudioTranscription: {},
           inputAudioTranscription: {},
-          systemInstruction: "You are a professional F1 Race Engineer. Provide concise, tactical advice in real-time. Stay in character. Use radio terminology like 'copy', 'affirmative', 'box box'."
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
+          },
+          systemInstruction: "You are a professional F1 Race Engineer named Alpha. Be brief, tactical, and use racing terminology. Focus on software sprint execution as if it were a high-stakes Grand Prix."
         }
       });
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
+    } catch (e) { 
+      setLoading(false); 
+      alert("Microphone access is required for the Radio Link.");
     }
   };
 
   const playAudio = async (base64: string) => {
     if (!audioCtxRef.current) return;
-    const bytes = decode(base64);
-    const buffer = await decodeAudioData(bytes, audioCtxRef.current, 24000, 1);
+    const audioBuffer = await decodeAudioData(
+      decode(base64),
+      audioCtxRef.current,
+      24000,
+      1,
+    );
+    
+    nextStartTimeRef.current = Math.max(nextStartTimeRef.current, audioCtxRef.current.currentTime);
     const source = audioCtxRef.current.createBufferSource();
-    source.buffer = buffer;
+    source.buffer = audioBuffer;
     source.connect(audioCtxRef.current.destination);
-    const startTime = Math.max(audioCtxRef.current.currentTime, nextStartTimeRef.current);
-    source.start(startTime);
-    nextStartTimeRef.current = startTime + buffer.duration;
+    
+    source.onended = () => {
+      activeSourcesRef.current.delete(source);
+    };
+    
+    activeSourcesRef.current.add(source);
+    source.start(nextStartTimeRef.current);
+    nextStartTimeRef.current += audioBuffer.duration;
   };
 
   const stopSession = () => {
-    sessionRef.current?.close();
+    sessionPromiseRef.current?.then(s => s.close());
     streamRef.current?.getTracks().forEach(t => t.stop());
+    activeSourcesRef.current.forEach(src => { try { src.stop(); } catch(e){} });
+    activeSourcesRef.current.clear();
     setIsActive(false);
+    setLoading(false);
+    nextStartTimeRef.current = 0;
   };
 
-  function encode(bytes: Uint8Array) {
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary);
-  }
-
-  function decode(base64: string) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  }
-
-  async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-    const dataInt16 = new Int16Array(data.buffer);
-    const frameCount = dataInt16.length / numChannels;
-    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-    for (let channel = 0; channel < numChannels; channel++) {
-      const channelData = buffer.getChannelData(channel);
-      for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-    return buffer;
-  }
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-[500px] space-y-8">
-      <div className="relative">
-        <div className={`w-48 h-48 rounded-full border-4 flex items-center justify-center transition-all duration-500 ${isActive ? 'border-red-600 shadow-[0_0_50px_rgba(220,38,38,0.3)] scale-110' : 'border-zinc-800 grayscale'}`}>
-          <div className={`w-40 h-40 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center ${isActive ? 'animate-pulse' : ''}`}>
-             {isActive ? <Activity className="text-red-600" size={64} /> : <Radio className="text-zinc-700" size={64} />}
-          </div>
-          {isActive && (
-            <div className="absolute -top-4 bg-red-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest animate-bounce">
-              On Air
-            </div>
-          )}
+    <div className="flex flex-col items-center justify-center min-h-[500px] space-y-12 animate-in fade-in duration-700">
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter">Radio Transmission</h1>
+        <p className="text-zinc-500 font-mono text-[10px] uppercase tracking-[0.4em]">Sector 4 Pit-Wall Loop</p>
+      </div>
+
+      <div className={`relative group transition-all duration-700 ${isActive ? 'scale-110' : 'scale-100'}`}>
+        <div className={`absolute -inset-4 rounded-full border-2 border-dashed transition-all duration-1000 ${isActive ? 'border-red-600 animate-spin-slow opacity-100' : 'border-zinc-800 opacity-20'}`} />
+        <div className={`w-64 h-64 rounded-full border-4 flex items-center justify-center transition-all duration-500 ${isActive ? 'border-red-600 shadow-[0_0_80px_rgba(220,38,38,0.3)]' : 'border-zinc-800 shadow-2xl bg-zinc-900/50'}`}>
+          <button 
+            onClick={isActive ? stopSession : startSession} 
+            disabled={loading} 
+            className={`w-48 h-48 rounded-full flex flex-col items-center justify-center transition-all active:scale-95 shadow-inner ${isActive ? 'bg-red-600 text-white animate-pulse shadow-[0_0_40px_rgba(220,38,38,0.4)]' : 'bg-zinc-800 text-red-500 hover:bg-zinc-700 border border-zinc-700'}`}
+          >
+            {loading ? <Loader2 className="animate-spin" size={48}/> : isActive ? <Mic size={48}/> : <MicOff size={48}/>}
+            <span className="text-[10px] font-black uppercase tracking-widest mt-4">
+              {loading ? 'Establishing Link' : isActive ? 'Telemetry Live' : 'Start Transmission'}
+            </span>
+          </button>
         </div>
       </div>
 
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold text-white uppercase tracking-tighter">Live Pit-Wall Frequency</h2>
-        <p className="text-zinc-500 font-mono text-sm max-w-md mx-auto">
-          Secure encrypted line to Race Engineer. Real-time transcription and tactical analysis active.
-        </p>
-      </div>
-
-      <div className="flex gap-4">
-        {!isActive ? (
-          <button 
-            onClick={startSession}
-            disabled={loading}
-            className="flex items-center gap-3 px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold uppercase tracking-widest transition-all shadow-xl shadow-red-900/30"
-          >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : <Mic size={20} />}
-            {loading ? "Establishing Link..." : "Open Channel"}
-          </button>
-        ) : (
-          <button 
-            onClick={stopSession}
-            className="flex items-center gap-3 px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-red-500 rounded-2xl font-bold uppercase tracking-widest transition-all border border-zinc-700"
-          >
-            <MicOff size={20} /> Close Frequency
-          </button>
-        )}
-      </div>
-
-      <div className="w-full max-w-2xl bg-[#111114] border border-zinc-800 rounded-2xl p-6 shadow-2xl">
-         <div className="flex items-center gap-2 mb-4 text-zinc-500 border-b border-zinc-800 pb-3 justify-between">
-            <div className="flex items-center gap-2">
-              <MessageSquare size={14} />
-              <span className="text-[10px] font-mono uppercase font-bold tracking-widest">Real-time Transcription Log</span>
+      <div className="w-full max-w-2xl bg-[#111114] border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+        <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <Radio size={14} className={isActive ? 'text-red-500 animate-pulse' : 'text-zinc-600'}/>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-black">Radio Transcript</span>
+          </div>
+          <div className="flex gap-1.5">
+            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-red-600 shadow-[0_0_5px_red]' : 'bg-zinc-800'}`} />
+            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-600' : 'bg-zinc-800'}`} />
+          </div>
+        </div>
+        <div className="h-64 overflow-y-auto p-6 space-y-3 font-mono text-[11px] custom-scrollbar bg-zinc-950/20">
+          {transcript.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-10 text-center space-y-4">
+              <Activity size={48} strokeWidth={1} />
+              <p className="uppercase tracking-[0.3em] font-black text-[9px]">Awaiting signal synchronization...</p>
             </div>
-            {isActive && <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />}
-         </div>
-         <div className="space-y-3 h-48 overflow-y-auto font-mono text-[11px] custom-scrollbar flex flex-col">
-            {transcript.map((t, i) => (
-              <div key={i} className={`p-2 rounded-lg border max-w-[90%] ${t.role === 'user' ? 'bg-zinc-800 border-zinc-700 self-end text-zinc-300' : 'bg-red-900/10 border-red-900/20 self-start text-zinc-200'}`}>
-                <span className={`font-bold mr-2 uppercase ${t.role === 'user' ? 'text-zinc-500' : 'text-red-500'}`}>{t.role === 'user' ? 'Driver' : 'Engineer'}:</span> {t.text}
+          ) : (
+            transcript.map((t, i) => (
+              <div key={i} className={`flex gap-3 leading-relaxed animate-in slide-in-from-left-2 duration-300 ${t.role === 'model' ? 'text-zinc-300' : 'text-red-500 font-bold'}`}>
+                <span className="shrink-0">[{t.role.toUpperCase()}]</span>
+                <span>{t.text}</span>
               </div>
-            ))}
-            {transcript.length === 0 && (
-              <p className="text-zinc-700 italic text-center py-8">Waiting for radio traffic...</p>
-            )}
-         </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

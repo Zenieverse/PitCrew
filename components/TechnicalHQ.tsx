@@ -1,152 +1,138 @@
-
 import React, { useState } from 'react';
-import { Terminal, Bug, FlaskConical, Gauge, Loader2, Sparkles, Code2, ChevronRight, Activity, Zap, ShieldAlert } from 'lucide-react';
-import { getTechnicalDirectorInsight, generateCodeTests } from '../geminiService';
+import { Terminal, Bug, FlaskConical, Loader2, Play, Copy, Check, Shield, Cpu, Activity } from 'lucide-react';
+import { getTechnicalDirectorInsight, generateCodeTests } from '../geminiService.js';
 
 const TechnicalHQ: React.FC = () => {
-  const [codeInput, setCodeInput] = useState('');
+  const [input, setInput] = useState('');
   const [output, setOutput] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTask, setActiveTask] = useState<'diagnose' | 'test'>('diagnose');
+  const [task, setTask] = useState<'diagnose' | 'test'>('diagnose');
+  const [copied, setCopied] = useState(false);
 
   const handleAction = async () => {
-    if (!codeInput.trim()) return;
+    if (!input.trim() || loading) return;
     setLoading(true);
     setOutput(null);
     try {
-      if (activeTask === 'diagnose') {
-        const result = await getTechnicalDirectorInsight(codeInput);
-        setOutput(result);
-      } else {
-        const result = await generateCodeTests(codeInput);
-        setOutput(result);
-      }
-    } catch (e) {
-      setOutput("Engine failure. Telemetry lost.");
-    } finally {
-      setLoading(false);
-    }
+      const res = task === 'diagnose' ? await getTechnicalDirectorInsight(input) : await generateCodeTests(input);
+      setOutput(res);
+    } catch (e: any) { setOutput(`[ENGINE_FAILURE] >> ${e.message}`); }
+    finally { setLoading(false); }
+  };
+
+  const copyResult = () => {
+    if (!output) return;
+    navigator.clipboard.writeText(output);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-700">
-      {/* Left Column: Tech Telemetry */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-700 min-h-[600px]">
       <div className="lg:col-span-1 space-y-6">
-        <div className="bg-[#111114] border border-zinc-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]" />
-          <h2 className="text-lg font-bold text-white mb-6 uppercase flex items-center gap-2 tracking-tight">
-            <Gauge className="text-red-500" size={20} /> System Telemetry
-          </h2>
-          
+        <div className="bg-[#111114] border border-zinc-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden flex flex-col justify-between h-full">
           <div className="space-y-6">
-            <MetricItem label="Aerodynamic Drag" value="12.4%" sub="Technical Debt" color="text-yellow-500" progress={45} />
-            <MetricItem label="Reliability Rating" value="94.2%" sub="Logic Integrity" color="text-green-500" progress={94} />
-            <MetricItem label="Engine Temp" value="Stable" sub="Compute Load" color="text-blue-500" progress={65} />
-            <MetricItem label="Tire Wear" value="Optimal" sub="Sprint Pacing" color="text-green-500" progress={22} />
-          </div>
-        </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-600/10 rounded-lg"><Cpu className="text-red-600" size={20} /></div>
+              <h2 className="text-xl font-black text-white uppercase italic tracking-tighter">Technical Director</h2>
+            </div>
+            
+            <div className="space-y-2">
+              <button 
+                onClick={() => setTask('diagnose')} 
+                className={`w-full py-4 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 transition-all ${task === 'diagnose' ? 'bg-red-600 text-white shadow-xl' : 'bg-zinc-900 text-zinc-600 hover:bg-zinc-800'}`}
+              >
+                <Bug size={16}/> Diagnose Failure
+              </button>
+              <button 
+                onClick={() => setTask('test')} 
+                className={`w-full py-4 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 transition-all ${task === 'test' ? 'bg-blue-600 text-white shadow-xl' : 'bg-zinc-900 text-zinc-600 hover:bg-zinc-800'}`}
+              >
+                <FlaskConical size={16}/> Build Test Circuit
+              </button>
+            </div>
 
-        <div className="bg-[#111114] border border-zinc-800 rounded-2xl p-6 shadow-xl">
-          <h3 className="text-xs font-mono text-zinc-500 uppercase mb-4 font-bold tracking-widest flex items-center gap-2">
-            <ShieldAlert size={14} className="text-yellow-500" /> Rovo Dev Status
-          </h3>
-          <div className="flex items-center gap-3 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" />
-            <span className="text-[10px] font-mono text-zinc-400 uppercase">Agent: Tech-Director-V2.1</span>
+            <div className="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-900">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-black">Neural Director Active</span>
+              </div>
+              <p className="text-[10px] text-zinc-600 font-mono italic leading-relaxed">
+                Logic circuits are being analyzed using Gemini 3 Pro high-reasoning neural networks.
+              </p>
+            </div>
           </div>
-          <p className="mt-4 text-[11px] text-zinc-500 leading-relaxed italic">
-            "We're seeing minor vibration in the backend sector. Engaging Rovo Dev logic analysis to ensure we don't lose time in the final corners."
-          </p>
+          
+          <div className="mt-8">
+            <button 
+              onClick={handleAction} 
+              disabled={loading || !input.trim()} 
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest transition-all active:scale-95 flex items-center justify-center gap-3 shadow-2xl"
+            >
+              {loading ? <Loader2 className="animate-spin" size={18}/> : <Activity size={18}/>}
+              ENGAGE NEURAL CORE
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Right Column: AI Dev Actions */}
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-[#111114] border border-zinc-800 rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col h-full border-t-4 border-t-red-600">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setActiveTask('diagnose')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border transition-all ${activeTask === 'diagnose' ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-900/20' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}
-              >
-                Diagnose Failure
-              </button>
-              <button 
-                onClick={() => setActiveTask('test')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest border transition-all ${activeTask === 'test' ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-900/20' : 'bg-zinc-800 border-zinc-700 text-zinc-500'}`}
-              >
-                Generate Circuit
-              </button>
+      <div className="lg:col-span-2 bg-[#111114] border border-zinc-800 rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-x divide-zinc-800">
+          <div className="flex flex-col">
+            <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-center backdrop-blur-md">
+              <span className="text-[9px] font-mono text-zinc-500 uppercase font-black tracking-widest">Input Telemetry</span>
+              <Terminal size={12} className="text-zinc-600" />
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
-              <Terminal size={12} className="text-red-500" />
-              MISSION CONTROL // DEV_UNIT
-            </div>
+            <textarea 
+              value={input} 
+              onChange={e => setInput(e.target.value)} 
+              placeholder="Paste crashing logs, broken circuits, or logic blocks..." 
+              className="flex-1 w-full bg-transparent p-6 text-xs font-mono text-zinc-300 focus:outline-none resize-none placeholder-zinc-800 custom-scrollbar" 
+            />
           </div>
-
-          <div className="flex-1 space-y-4">
-            <div className="relative group">
-              <textarea 
-                value={codeInput}
-                onChange={(e) => setCodeInput(e.target.value)}
-                placeholder={activeTask === 'diagnose' ? "Paste engine logs, stack traces, or failing code..." : "Paste the source code to generate a test circuit..."}
-                className="w-full bg-[#0a0a0b] border border-zinc-800 rounded-xl p-5 text-sm font-mono min-h-[300px] focus:ring-1 focus:ring-red-500 focus:outline-none text-zinc-300 placeholder-zinc-700 selection:bg-red-600/30"
-              />
-              <div className="absolute top-5 right-5 text-zinc-800 opacity-20 group-focus-within:opacity-40 transition-opacity">
-                {activeTask === 'diagnose' ? <Bug size={48} /> : <FlaskConical size={48} />}
-              </div>
+          <div className="flex flex-col bg-zinc-950/30">
+            <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-center backdrop-blur-md">
+              <span className="text-[9px] font-mono text-zinc-500 uppercase font-black tracking-widest">Director Analysis</span>
+              {output && (
+                <button 
+                  onClick={copyResult} 
+                  className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors"
+                >
+                  {copied ? <Check size={14} className="text-green-500"/> : <Copy size={14} className="text-zinc-600"/>}
+                </button>
+              )}
             </div>
-
-            <button 
-              onClick={handleAction}
-              disabled={loading || !codeInput}
-              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-5 rounded-xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-red-900/30 transition-all active:scale-[0.98]"
-            >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : <Activity size={20} />}
-              {loading ? "Optimizing Thinking Engine..." : `Request ${activeTask === 'diagnose' ? 'Failure Diagnosis' : 'Test Blueprint'}`}
-            </button>
-
-            {output && (
-              <div className="mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 bg-yellow-500/20 rounded">
-                    <Sparkles size={14} className="text-yellow-500" />
+            <div className="flex-1 p-8 relative overflow-y-auto custom-scrollbar">
+              {loading ? (
+                <div className="absolute inset-0 bg-[#0a0a0b]/80 backdrop-blur-sm flex flex-col items-center justify-center space-y-6 z-20">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-red-600/10 border-t-red-600 rounded-full animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Cpu size={24} className="text-red-600 animate-pulse" />
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase font-bold tracking-[0.2em]">Technical Director's Report</span>
-                </div>
-                <div className="bg-zinc-900/90 border border-zinc-800 p-8 rounded-3xl relative overflow-hidden backdrop-blur-sm">
-                  <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
-                    <Zap size={120} className="text-red-500" />
+                  <div className="text-center space-y-2">
+                    <p className="text-[10px] font-mono text-zinc-400 uppercase font-black tracking-[0.5em] animate-pulse">Analyzing Circuitry</p>
+                    <p className="text-[8px] text-zinc-600 font-mono uppercase tracking-widest">Applying Thinking Budget: 32768 tokens</p>
                   </div>
-                  <pre className="text-sm text-zinc-200 whitespace-pre-wrap font-sans leading-relaxed relative z-10 font-medium">
-                    {output}
-                  </pre>
                 </div>
-              </div>
-            )}
+              ) : output ? (
+                <pre className="text-xs font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  {output}
+                </pre>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-zinc-800 text-center opacity-40 select-none pointer-events-none">
+                  <Shield size={64} strokeWidth={1} className="mb-4" />
+                  <p className="text-[10px] font-mono uppercase tracking-[0.4em] font-black">System Ready</p>
+                  <p className="text-[8px] font-mono uppercase tracking-widest mt-2">Engage Neural Core to start analysis</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
-
-const MetricItem = ({ label, value, sub, color, progress }: any) => (
-  <div className="space-y-2 group">
-    <div className="flex justify-between items-end">
-      <div>
-        <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block mb-1">{label}</span>
-        <span className={`text-xl font-bold ${color} tracking-tight`}>{value}</span>
-      </div>
-      <span className="text-[10px] font-mono text-zinc-600 uppercase mb-1 font-bold">{sub}</span>
-    </div>
-    <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden shadow-inner border border-zinc-800/50">
-      <div 
-        className={`h-full transition-all duration-1000 ${color.replace('text-', 'bg-')} shadow-[0_0_8px_rgba(255,255,255,0.1)]`} 
-        style={{ width: `${progress}%` }}
-      />
-    </div>
-  </div>
-);
 
 export default TechnicalHQ;

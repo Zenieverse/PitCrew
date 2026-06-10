@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -6,44 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PitCrew AI | Race Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
+      :root {
+        color-scheme: dark;
+      }
       body {
         font-family: 'Inter', sans-serif;
         background-color: #0a0a0b;
         color: #e4e4e7;
+        margin: 0;
+        overflow: hidden;
       }
       .font-mono {
-        font-family: 'JetBrains+Mono', monospace;
+        font-family: 'JetBrains Mono', monospace;
       }
       ::-webkit-scrollbar {
         width: 8px;
+        height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #18181b;
+        background: #0a0a0b;
       }
       ::-webkit-scrollbar-thumb {
-        background: #3f3f46;
-        border-radius: 4px;
+        background: #27272a;
+        border-radius: 10px;
+        border: 2px solid #0a0a0b;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #52525b;
+        background: #3f3f46;
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-spin-slow {
+        animation: spin 8s linear infinite;
+      }
+      .carbon-bg {
+        background-image: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
+      }
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        background: #0a0a0b;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease, visibility 0.5s;
+      }
+      .custom-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #27272a #0a0a0b;
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "recharts": "https://esm.sh/recharts@^3.6.0",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
-  }
-}
-</script>
+    <script>
+      // Crucial: Initialize process.env for standard library compatibility
+      window.process = window.process || { env: { API_KEY: "" } };
+      
+      // Global error handler for boot failures
+      window.onerror = function(message, source, lineno, colno, error) {
+        console.error("Race Control Critical System Error:", {message, source, lineno});
+        const loader = document.getElementById('app-loader');
+        if (loader) loader.style.display = 'none';
+        
+        const root = document.getElementById('root');
+        if (root && (root.innerHTML === "" || root.children.length === 0)) {
+          root.innerHTML = `
+            <div style="height: 100vh; background: #0a0a0b; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; text-align: center; padding: 20px;">
+              <h2 style="font-weight: 900; font-style: italic; letter-spacing: -0.05em; color: #ef4444; font-size: 2.5rem; text-transform: uppercase; margin: 0;">Telemetry Offline</h2>
+              <p style="opacity: 0.5; font-size: 14px; max-width: 450px; margin-top: 16px; line-height: 1.6; font-family: 'Inter', sans-serif;">
+                The neural link to Race Control could not be established. Ensure your connection to the pit wall is stable.
+              </p>
+              <div style="background: #111114; padding: 16px; border-radius: 12px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #ef4444; margin-top: 24px; border: 1px solid #27272a; max-width: 100%; overflow: auto; text-align: left; opacity: 0.8;">
+                Error: ${message}
+              </div>
+              <button onclick="window.location.reload()" style="margin-top: 32px; background: #ef4444; color: white; border: none; padding: 16px 32px; border-radius: 14px; font-weight: 900; cursor: pointer; text-transform: uppercase; font-size: 12px; letter-spacing: 0.2em; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);">Re-sync Telemetry</button>
+            </div>
+          `;
+        }
+      };
+    </script>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.3.1",
+        "react-dom": "https://esm.sh/react-dom@18.3.1",
+        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+        "react/": "https://esm.sh/react@18.3.1/",
+        "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+        "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react,react-dom",
+        "@google/genai": "https://esm.sh/@google/genai@0.21.0",
+        "recharts": "https://esm.sh/recharts@2.13.0?external=react,react-dom"
+      }
+    }
+    </script>
+  <link rel="stylesheet" href="/index.css">
 </head>
   <body>
+    <div id="app-loader">
+      <div style="width: 56px; height: 56px; border: 4px solid rgba(239, 68, 68, 0.1); border-top-color: #ef4444; border-radius: 50%; animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;"></div>
+      <div style="margin-top: 28px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5em; font-weight: 900;">Syncing Pit Wall...</div>
+    </div>
     <div id="root"></div>
-  </body>
+    <script type="module" src="./index.js"></script>
+    <script type="module">
+      function hideLoader() {
+        const loader = document.getElementById('app-loader');
+        if (loader) {
+          loader.style.opacity = '0';
+          loader.style.visibility = 'hidden';
+          setTimeout(() => { loader.style.display = 'none'; }, 500);
+        }
+      }
+      // Failsafe hide
+      window.addEventListener('load', () => {
+        setTimeout(hideLoader, 500);
+      });
+      setTimeout(hideLoader, 6000);
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

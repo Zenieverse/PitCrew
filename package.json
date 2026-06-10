@@ -1,5 +1,5 @@
 {
-  "name": "pitcrew-ai---sprint-race-control",
+  "name": "pitcrew-ai",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "lucide-react": "^0.562.0",
-    "@google/genai": "^1.34.0",
-    "recharts": "^3.6.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "lucide-react": "0.460.0",
+    "@google/genai": "0.21.0",
+    "recharts": "2.13.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

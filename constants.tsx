@@ -1,5 +1,4 @@
-
-import { JiraIssue, IssueStatus, Priority, SprintStats } from './types';
+import { JiraIssue, IssueStatus, Priority, SprintStats } from './types.js';
 
 export const MOCK_ISSUES: JiraIssue[] = [
   { id: '1', key: 'PIT-101', summary: 'Optimize database queries for aero-sensor API', status: IssueStatus.DONE, assignee: 'Lewis H.', priority: Priority.HIGH, storyPoints: 5, flagged: false },

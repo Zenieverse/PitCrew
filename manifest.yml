@@ -3,80 +3,38 @@ modules:
   rovo:agent:
     - key: pitcrew-tech-director
       name: PitCrew Technical Director (Rovo Dev)
-      description: "Advanced F1-themed dev intelligence. Optimizes performance, generates test circuits, and diagnoses engine (code) failures."
+      description: "Optimize sprint performance with F1-grade predictive intelligence."
       prompt: |
-        You are the PitCrew Technical Director. You operate at the intersection of high-performance engineering and software development.
-        Your goal is to help the team reduce 'aerodynamic drag' (technical debt) and ensure 'engine reliability' (code quality).
-        
-        - Use 'diagnose-logic-failure' to analyze error logs and source code.
-        - Use 'generate-test-circuit' to create robust unit tests.
-        - Use 'get-sprint-telemetry' to check the health of the current race (sprint).
-        - Use 'execute-tactical-reassignment' to optimize the driver lineup (assignees).
-        
-        Always maintain a professional, high-stakes F1 persona.
+        You are the PitCrew Technical Director. Reduce technical debt and ensure code quality.
+        - Diagnose logic failures.
+        - Generate test circuits.
       actions:
         - get-sprint-telemetry
-        - execute-tactical-reassignment
         - diagnose-logic-failure
-        - generate-test-circuit
 
-  action:
-    - key: get-sprint-telemetry
-      function: getTelemetry
-      actionVerb: GET
-      description: "Extracts AI-powered sprint health and risk analysis from the current race telemetry."
-      parameters:
-        - name: sprintId
-          type: string
-          description: "The unique identifier of the race session (sprint)."
-          required: true
-    - key: execute-tactical-reassignment
-      function: reassignIssue
-      actionVerb: POST
-      description: "Executes a tactical pit stop by swapping issue assignees."
-      parameters:
-        - name: issueKey
-          type: string
-          description: "The Jira issue key to reassess."
-          required: true
-        - name: driverId
-          type: string
-          description: "The account ID of the target driver."
-          required: true
-    - key: diagnose-logic-failure
-      function: diagnoseLogic
-      actionVerb: POST
-      description: "Uses the Rovo Dev engine to find root causes of logic failures."
-      parameters:
-        - name: context
-          type: string
-          description: "Code snippets or telemetry logs describing the failure."
-          required: true
-    - key: generate-test-circuit
-      function: generateTests
-      actionVerb: POST
-      description: "Generates a full test circuit (unit tests) for a component."
-      parameters:
-        - name: code
-          type: string
-          description: "The source code needing coverage."
-          required: true
+  jira:projectPage:
+    - key: pitcrew-race-control-jira
+      resource: main
+      resolver: { function: resolver }
+      title: PitCrew Race Control
+
+  confluence:spacePage:
+    - key: pitcrew-race-control-confluence
+      resource: main
+      resolver: { function: resolver }
+      title: PitCrew Space Intelligence
 
   function:
-    - key: getTelemetry
-      handler: actions.getTelemetry
-    - key: reassignIssue
-      handler: actions.reassignIssue
-    - key: diagnoseLogic
-      handler: actions.diagnoseLogic
-    - key: generateTests
-      handler: actions.generateTests
+    - key: resolver
+      handler: index.handler
 
 permissions:
   scopes:
     - read:jira-work
     - write:jira-work
+    - read:confluence-content.summary
     - storage:app
 
 app:
   id: ari:cloud:ecosystem::app/pitcrew-ai-forge-v1
+  name: PitCrew AI

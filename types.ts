@@ -49,7 +49,6 @@ export interface ChatMessage {
   isThinking?: boolean;
 }
 
-// Defining as const objects to ensure the bindings exist at runtime in ESM
 export const ImageSize = {
   '1K': '1K',
   '2K': '2K',
@@ -59,12 +58,15 @@ export type ImageSize = keyof typeof ImageSize;
 
 export const AspectRatio = {
   '1:1': '1:1',
-  '2:3': '2:3',
-  '3:2': '3:2',
   '3:4': '3:4',
   '4:3': '4:3',
   '9:16': '9:16',
   '16:9': '16:9',
-  '21:9': '21:9',
 } as const;
 export type AspectRatio = keyof typeof AspectRatio;
+
+export type RovoActionType = 
+  | 'pit_reassign_issue' 
+  | 'adjust_priority' 
+  | 'create_escalation_ticket' 
+  | 'update_race_log';

@@ -1,8 +1,10 @@
 {
-  "name": "PitCrew AI - Sprint Race Control",
-  "description": "An Atlassian Forge-inspired dashboard that transforms Jira sprint execution into a Formula 1-style race control system using Gemini AI for predictive analytics and sprint guidance.",
+  "name": "PitCrew AI",
+  "description": "Transform Jira sprint execution into a Formula 1–style race control system with predictive AI analytics, voice comms, and strategic grounding.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
-  ]
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
 }
