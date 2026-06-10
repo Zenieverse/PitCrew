@@ -8,6 +8,8 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/fab92e75-4d38-4c7a-8ad5-52fbc67f5308
 
+or https://pitcrew-ai-764082783379.us-west1.run.app
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
